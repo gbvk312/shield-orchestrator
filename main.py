@@ -94,35 +94,14 @@ async def main():
     }
 
     try:
-        async with MCPServerStdio(params=server_params, name="ShieldAgent-MCP") as mcp_server:
+        async with MCPServerStdio(
+            params=server_params, 
+            name="ShieldAgent-MCP",
+            client_session_timeout_seconds=30
+        ) as mcp_server:
             print("[+] Successfully connected to ShieldAgent-MCP!")
             
             # --- AGENT DEFINITIONS ---
-
-            auditor = Agent(
-                name="SecurityAuditor",
-                instructions=(
-                    "You are a Senior Security Auditor. Your goal is to find vulnerabilities. "
-                    "Use 'scan_for_secrets' to find PII/Secrets in directories. "
-                    "Use 'audit_file' to audit specific source files. "
-                    "Report findings and hand back control to the Manager."
-                ),
-                model=rotating_model,
-                mcp_servers=[mcp_server],
-                mcp_config={"convert_schemas_to_strict": True}
-            )
-
-            remediator = Agent(
-                name="SecurityRemediator",
-                instructions=(
-                    "You are a Security Remediation Expert. Your goal is to fix vulnerabilities. "
-                    "Use 'safe_write_file' to apply patches. Always provide a 'reason'. "
-                    "Report success and hand back control to the Manager."
-                ),
-                model=rotating_model,
-                mcp_servers=[mcp_server],
-                mcp_config={"convert_schemas_to_strict": True}
-            )
 
             # Triage/Manager
             manager = Agent(
@@ -136,7 +115,6 @@ async def main():
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
-                # No handoffs here yet because we need to define auditor/remediator first
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
@@ -146,11 +124,11 @@ async def main():
                     "You are a Senior Security Auditor. Your goal is to find vulnerabilities. "
                     "Use 'scan_for_secrets' to find PII/Secrets in directories. "
                     "Use 'audit_file' to audit specific source files. "
-                    "Report findings and then hand back control to the Manager using 'transfer_to_manager'."
+                    "Once your audit is done, report findings and return control to the Manager."
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
-                handoffs=[manager],
+                # Linkage to Manager + other specialists prevents 'Tool not found' hallucinations
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
@@ -159,16 +137,18 @@ async def main():
                 instructions=(
                     "You are a Security Remediation Expert. Your goal is to fix vulnerabilities. "
                     "Use 'safe_write_file' to apply patches. Always provide a 'reason'. "
-                    "Report success and then hand back control to the Manager using 'transfer_to_manager'."
+                    "Once fixed, report success and return control to the Manager."
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
-                handoffs=[manager],
+                # Linkage to Manager + other specialists prevents 'Tool not found' hallucinations
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
-            # Update manager to include her specialists
-            manager.handoffs = [auditor, remediator]
+            # Link all agents to each other to ensure all 'transfer_to' tools are available
+            agent_pool = [manager, auditor, remediator]
+            for agent in agent_pool:
+                agent.handoffs = [a for a in agent_pool if a != agent]
 
             # --- START REPL ---
             print("---")
