@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections.abc import AsyncIterator
 from dotenv import load_dotenv
 
 # Load .env file
@@ -11,7 +12,53 @@ set_tracing_disabled(True)
 
 from openai import AsyncOpenAI
 from agents import Agent, Runner, OpenAIChatCompletionsModel
+from agents.models.interface import Model, ModelTracing
 from agents.mcp import MCPServerStdio
+
+# --- CUSTOM ROTATING MODEL (FAILOVER MODE) ---
+
+class RotatingModel(Model):
+    """
+    Stays with the same model until a Rate Limit (429) is encountered,
+    then fails over to the next model in the pool.
+    """
+    def __init__(self, model_ids: list[str], client: AsyncOpenAI):
+        self.model_ids = model_ids
+        self.client = client
+        self.index = 0
+        self._models = [
+            OpenAIChatCompletionsModel(model=mid, openai_client=client)
+            for mid in model_ids
+        ]
+
+    def _get_current_model(self):
+        return self._models[self.index]
+
+    async def get_response(self, *args, **kwargs):
+        attempts = 0
+        while attempts < len(self._models):
+            model = self._get_current_model()
+            try:
+                # Attempt to get a response with the current model
+                return await model.get_response(*args, **kwargs)
+            except Exception as e:
+                err_str = str(e).lower()
+                # Detect rate limits (429) or Google's RESOURCE_EXHAUSTED status
+                if any(key in err_str for key in ["429", "resource_exhausted", "rate limit"]):
+                    print(f"[RotatingModel] ⚠️ Rate Limit hit for {self.model_ids[self.index]}.")
+                    self.index = (self.index + 1) % len(self._models)
+                    print(f"[RotatingModel] 🔄 Failing over to: {self.model_ids[self.index]}")
+                    attempts += 1
+                    continue
+                # For any other fatal errors (400, etc.), raise immediately
+                raise e
+        
+        raise Exception("❌ All models in the pool have reached their rate limits. Please wait a minute.")
+
+    async def stream_response(self, *args, **kwargs) -> AsyncIterator:
+        # Note: Failover for streaming is only supported if the 429 happens at connection start.
+        model = self._get_current_model()
+        return model.stream_response(*args, **kwargs)
 
 async def main():
     gemini_key = os.getenv("GEMINI_API_KEY")
@@ -19,54 +66,114 @@ async def main():
         print("Please configure GEMINI_API_KEY in your .env file.")
         return
 
-    print("Initializing ShieldOrchestrator with Gemini...")
+    print("Initializing Multi-Agent Security Framework (Failover Mode)...")
 
-    # 2. Configure a dedicated AsyncOpenAI client for Gemini
-    # This ensures the base URL is locked in at the client level
+    # 2. Configure Gemini Client
     gemini_client = AsyncOpenAI(
         api_key=gemini_key,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
     )
 
-    # 3. Use OpenAIChatCompletionsModel to force use of the Chat Completions API
-    # (Gemini's compatibility layer supports Chat Completions, but not the newer 'Responses API')
-    model = OpenAIChatCompletionsModel(
-        model="gemini-flash-latest", 
-        openai_client=gemini_client
-    )
+    # 3. Define the Model Pool (Gemma 4+ and Gemini)
+    # Sticking to models confirmed to support Tool Calling.
+    model_pool = [
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
+        "gemini-2.0-flash",
+        "gemini-flash-latest",
+        "gemini-pro-latest"
+    ]
+    
+    rotating_model = RotatingModel(model_pool, gemini_client)
 
-    # Define how to start ShieldAgent-MCP
+    # 4. Define MCP Server Connection
     server_params = {
         "command": "bash",
-        "args": ["-c", "cd ../shield-agent-mcp && uv run shield-agent run-mcp"]
+        "args": ["-c", "cd ../shield-agent-mcp && uv run shield-agent run-mcp"],
+        "env": {**os.environ, "GEMINI_API_KEY": gemini_key}
     }
 
     try:
         async with MCPServerStdio(params=server_params, name="ShieldAgent-MCP") as mcp_server:
             print("[+] Successfully connected to ShieldAgent-MCP!")
             
-            # Debug: Print discovered tools
-            tools = await mcp_server.list_tools()
-            print(f"[+] Discovered {len(tools)} tools: {[t.name for t in tools]}")
-            
-            # Initialize the agent and pass the MCP server instance 
-            agent = Agent(
-                name="ShieldOrchestrator",
+            # --- AGENT DEFINITIONS ---
+
+            auditor = Agent(
+                name="SecurityAuditor",
                 instructions=(
-                    "You are ShieldOrchestrator, a highly capable multi-agent security analyst. "
-                    "You have access to tools via the connected ShieldAgent-MCP. "
-                    "CRITICAL: Only use tools that are explicitly provided in your tool list. "
-                    "Do NOT assume tools like 'list_dir' exist; use 'list_directory' instead if available. "
-                    "When asked to investigate, use 'list_directory' to explore the path first. "
-                    "Be meticulous and think step-by-step."
+                    "You are a Senior Security Auditor. Your goal is to find vulnerabilities. "
+                    "Use 'scan_for_secrets' to find PII/Secrets in directories. "
+                    "Use 'audit_file' to audit specific source files. "
+                    "Report findings and hand back control to the Manager."
                 ),
-                model=model,
+                model=rotating_model,
                 mcp_servers=[mcp_server],
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
+            remediator = Agent(
+                name="SecurityRemediator",
+                instructions=(
+                    "You are a Security Remediation Expert. Your goal is to fix vulnerabilities. "
+                    "Use 'safe_write_file' to apply patches. Always provide a 'reason'. "
+                    "Report success and hand back control to the Manager."
+                ),
+                model=rotating_model,
+                mcp_servers=[mcp_server],
+                mcp_config={"convert_schemas_to_strict": True}
+            )
+
+            # Triage/Manager
+            manager = Agent(
+                name="Manager",
+                instructions=(
+                    "You are the Lead Security Orchestrator (Manager). "
+                    "1. Explore structure with 'list_directory'. "
+                    "2. Check network with 'check_network_exposure'. "
+                    "3. Delegate finding issues to 'SecurityAuditor'. "
+                    "4. Delegate fixing issues to 'SecurityRemediator'. "
+                ),
+                model=rotating_model,
+                mcp_servers=[mcp_server],
+                # No handoffs here yet because we need to define auditor/remediator first
+                mcp_config={"convert_schemas_to_strict": True}
+            )
+
+            auditor = Agent(
+                name="SecurityAuditor",
+                instructions=(
+                    "You are a Senior Security Auditor. Your goal is to find vulnerabilities. "
+                    "Use 'scan_for_secrets' to find PII/Secrets in directories. "
+                    "Use 'audit_file' to audit specific source files. "
+                    "Report findings and then hand back control to the Manager using 'transfer_to_manager'."
+                ),
+                model=rotating_model,
+                mcp_servers=[mcp_server],
+                handoffs=[manager],
+                mcp_config={"convert_schemas_to_strict": True}
+            )
+
+            remediator = Agent(
+                name="SecurityRemediator",
+                instructions=(
+                    "You are a Security Remediation Expert. Your goal is to fix vulnerabilities. "
+                    "Use 'safe_write_file' to apply patches. Always provide a 'reason'. "
+                    "Report success and then hand back control to the Manager using 'transfer_to_manager'."
+                ),
+                model=rotating_model,
+                mcp_servers=[mcp_server],
+                handoffs=[manager],
+                mcp_config={"convert_schemas_to_strict": True}
+            )
+
+            # Update manager to include her specialists
+            manager.handoffs = [auditor, remediator]
+
+            # --- START REPL ---
             print("---")
-            print("ShieldOrchestrator (Gemini) REPL Started. Type 'exit' or 'quit' to terminate.")
+            print(f"Primary Model: {model_pool[0]}")
+            print(f"Failover Pool: {', '.join(model_pool[1:])}")
             print("---")
             
             while True:
@@ -76,11 +183,12 @@ async def main():
                 if not prompt.strip():
                     continue
                 
-                print("\n[ShieldOrchestrator is thinking...]")
+                print(f"\n[ShieldOrchestrator is processing...]")
                 
                 try:
-                    result = await Runner.run(agent, prompt)
-                    print(f"\n[ShieldOrchestrator]> {result.final_output}")
+                    # Always start with the manager/triage agent
+                    result = await Runner.run(manager, prompt)
+                    print(f"\n[Result]> {result.final_output}")
                 except Exception as e:
                     print(f"\n[Error during run]: {e}")
 
