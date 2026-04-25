@@ -58,7 +58,7 @@ class RotatingModel(Model):
     async def stream_response(self, *args, **kwargs) -> AsyncIterator:
         # Note: Failover for streaming is only supported if the 429 happens at connection start.
         model = self._get_current_model()
-        return model.stream_response(*args, **kwargs)
+        return await model.stream_response(*args, **kwargs)
 
 async def main():
     gemini_key = os.getenv("GEMINI_API_KEY")
