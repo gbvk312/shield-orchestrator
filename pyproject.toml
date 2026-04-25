@@ -3,9 +3,9 @@ name = "shield-orchestrator"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
-    "openai-agents[mcp]>=0.14.2",
+    "openai-agents>=0.14.2",
 ]
 
 [dependency-groups]
@@ -13,4 +13,8 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
 
