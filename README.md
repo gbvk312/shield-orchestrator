@@ -1,15 +1,80 @@
-# ShieldOrchestrator
+# 🛡️ ShieldOrchestrator
 
-**ShieldOrchestrator** is a multi-agent DevSecOps orchestration framework based on the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python). It is designed to act as the autonomous brain that manages sub-agents like [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp) to bring robust, automated, and local-first security scanning and remediation into your CI/CD pipelines and local development workflows.
+**ShieldOrchestrator** is a multi-agent DevSecOps orchestration framework built on the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python). It serves as the autonomous "brain" that manages specialized sub-agents to deliver robust, automated, and local-first security scanning and remediation.
 
-## The Vision
+By leveraging the **Model Context Protocol (MCP)**, ShieldOrchestrator integrates deeply with local development environments, allowing AI agents to inspect codebases, identify vulnerabilities, and apply fixes without exposing sensitive data to external services.
 
-Agentic workflows are the future of automation. ShieldOrchestrator utilizes Model Context Protocol (MCP) servers, such as ShieldAgent, to deeply inspect local codebases, execute sophisticated automated security audits (like running multi-threaded vulnerability scans via `trivy`, `semgrep`, etc.), analyze findings using advanced LLMs via the OpenAI Agents framework, and automatically generate remediation plans or fix PRs without exposing proprietary data natively.
+---
 
-## Getting Started
+## 🚀 Key Features
 
-*(Documentation coming soon)*
+### 🔄 Intelligent Model Failover (Rotating Model)
+ShieldOrchestrator features a custom `RotatingModel` implementation that ensures high availability. It maintains a pool of models (Gemma, Gemini Flash, Gemini Pro) and automatically fails over to the next available model if it encounters rate limits (HTTP 429) or resource exhaustion.
 
-## License
+### 🤖 Multi-Agent Specialized Workflows
+The framework utilizes three specialized agents working in concert:
+- **Lead Orchestrator (Manager)**: The entry point for all requests. Handles triage, explores repository structure, and delegates tasks to specialists.
+- **Security Auditor**: Focused on vulnerability discovery. Uses tools to scan for secrets, PII, and performs deep file audits.
+- **Security Remediator**: Responsible for fixing identified issues. Generates and applies safe patches to the codebase with clear justifications.
+
+### 🔌 MCP-Native Integration
+ShieldOrchestrator is designed to work seamlessly with [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp), providing agents with direct access to security tools like `trivy`, `semgrep`, and local filesystem operations.
+
+---
+
+## 🛠️ Getting Started
+
+### Prerequisites
+- **Python**: 3.14+ (as specified in `pyproject.toml`)
+- **Package Manager**: [uv](https://github.com/astral-sh/uv)
+- **API Key**: A valid `GEMINI_API_KEY` with access to Google's Generative AI models.
+- **Local Dependency**: The [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp) repository should be cloned in the parent directory (relative path: `../shield-agent-mcp`).
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/gbvk312/shield-orchestrator.git
+   cd shield-orchestrator
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   uv sync
+   ```
+
+### Configuration
+
+Create a `.env` file in the root directory and add your API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+*(Refer to `.env.example` for the template)*
+
+---
+
+## 🖥️ Usage
+
+Run the orchestrator REPL to start interacting with the agents:
+
+```bash
+uv run main.py
+```
+
+Once the REPL starts, you can issue high-level security commands like:
+- *"Perform a full security audit of the current directory."*
+- *"Scan for hardcoded secrets and fix any you find."*
+- *"Check if our network configuration is exposed."*
+
+---
+
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙌 Credits & Acknowledgments
+- **OpenAI Agents SDK**: For the robust multi-agent orchestration framework.
+- **Model Context Protocol (MCP)**: For enabling secure, local tool integration.
+- **Google Gemini & Gemma**: For providing the powerful LLMs that drive the security analysis.
