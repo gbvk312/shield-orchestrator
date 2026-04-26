@@ -7,13 +7,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 1. Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
-from agents import set_tracing_disabled
+from agents import set_tracing_disabled  # noqa: E402
 set_tracing_disabled(True)
 
-from openai import AsyncOpenAI
-from agents import Agent, Runner, OpenAIChatCompletionsModel
-from agents.models.interface import Model, ModelTracing
-from agents.mcp import MCPServerStdio
+from openai import AsyncOpenAI  # noqa: E402
+from agents import Agent, Runner, OpenAIChatCompletionsModel  # noqa: E402
+from agents.models.interface import Model  # noqa: E402
+from agents.mcp import MCPServerStdio  # noqa: E402
 
 # --- CUSTOM ROTATING MODEL (FAILOVER MODE) ---
 
@@ -56,9 +56,22 @@ class RotatingModel(Model):
         raise Exception("❌ All models in the pool have reached their rate limits. Please wait a minute.")
 
     async def stream_response(self, *args, **kwargs) -> AsyncIterator:
-        # Note: Failover for streaming is only supported if the 429 happens at connection start.
-        model = self._get_current_model()
-        return await model.stream_response(*args, **kwargs)
+        """Stream with failover: retries on 429 at connection start."""
+        attempts = 0
+        while attempts < len(self._models):
+            model = self._get_current_model()
+            try:
+                return await model.stream_response(*args, **kwargs)
+            except Exception as e:
+                err_str = str(e).lower()
+                if any(key in err_str for key in ["429", "resource_exhausted", "rate limit"]):
+                    print(f"[RotatingModel] ⚠️ Stream Rate Limit hit for {self.model_ids[self.index]}.")
+                    self.index = (self.index + 1) % len(self._models)
+                    print(f"[RotatingModel] 🔄 Stream failing over to: {self.model_ids[self.index]}")
+                    attempts += 1
+                    continue
+                raise e
+        raise Exception("❌ All models in the pool have reached their rate limits during streaming.")
 
 async def main():
     gemini_key = os.getenv("GEMINI_API_KEY")
@@ -108,10 +121,13 @@ async def main():
                 name="Manager",
                 instructions=(
                     "You are the Lead Security Orchestrator (Manager). "
-                    "1. Explore structure with 'list_directory'. "
-                    "2. Check network with 'check_network_exposure'. "
-                    "3. Delegate finding issues to 'SecurityAuditor'. "
-                    "4. Delegate fixing issues to 'SecurityRemediator'. "
+                    "Your workflow for every request: "
+                    "1. Use 'list_directory' to explore the project structure and understand the codebase layout. "
+                    "2. Use 'check_network_exposure' to identify open ports and risky network services. "
+                    "3. Hand off to 'SecurityAuditor' for deep vulnerability scanning and file audits. "
+                    "4. After receiving audit findings, hand off to 'SecurityRemediator' to apply fixes. "
+                    "5. Summarize all findings and actions taken in a final report. "
+                    "Always prefer delegation over doing security analysis yourself."
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
@@ -121,27 +137,32 @@ async def main():
             auditor = Agent(
                 name="SecurityAuditor",
                 instructions=(
-                    "You are a Senior Security Auditor. Your goal is to find vulnerabilities. "
-                    "Use 'scan_for_secrets' to find PII/Secrets in directories. "
-                    "Use 'audit_file' to audit specific source files. "
-                    "Once your audit is done, report findings and return control to the Manager."
+                    "You are a Senior Security Auditor. Your ONLY goal is to find vulnerabilities. "
+                    "Workflow: "
+                    "1. Use 'scan_for_secrets' on the target directory to detect PII, API keys, and secrets. "
+                    "2. Use 'read_file' to inspect suspicious files identified by the scan. "
+                    "3. Use 'audit_file' on critical source files (e.g., config, auth, API handlers) for deep analysis. "
+                    "4. Compile a structured report with severity levels (CRITICAL/HIGH/MEDIUM/LOW). "
+                    "5. Hand off to the Manager with your findings. Do NOT attempt to fix issues yourself."
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
-                # Linkage to Manager + other specialists prevents 'Tool not found' hallucinations
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
             remediator = Agent(
                 name="SecurityRemediator",
                 instructions=(
-                    "You are a Security Remediation Expert. Your goal is to fix vulnerabilities. "
-                    "Use 'safe_write_file' to apply patches. Always provide a 'reason'. "
-                    "Once fixed, report success and return control to the Manager."
+                    "You are a Security Remediation Expert. Your ONLY goal is to fix vulnerabilities. "
+                    "Workflow: "
+                    "1. Review the audit findings provided by the Manager or Auditor. "
+                    "2. Use 'read_file' to inspect the current content of affected files. "
+                    "3. Use 'safe_write_file' to apply patches. ALWAYS provide a clear 'reason' explaining the security fix. "
+                    "4. Verify your fix by reading the file again after writing. "
+                    "5. Report all changes made and hand off to the Manager. Do NOT scan for new issues."
                 ),
                 model=rotating_model,
                 mcp_servers=[mcp_server],
-                # Linkage to Manager + other specialists prevents 'Tool not found' hallucinations
                 mcp_config={"convert_schemas_to_strict": True}
             )
 
@@ -163,7 +184,7 @@ async def main():
                 if not prompt.strip():
                     continue
                 
-                print(f"\n[ShieldOrchestrator is processing...]")
+                print("\n[ShieldOrchestrator is processing...]")
                 
                 try:
                     # Always start with the manager/triage agent

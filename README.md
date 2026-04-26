@@ -25,7 +25,7 @@ ShieldOrchestrator is designed to work seamlessly with [ShieldAgent-MCP](https:/
 ## 🛠️ Getting Started
 
 ### Prerequisites
-- **Python**: 3.14+ (as specified in `pyproject.toml`)
+- **Python**: 3.12+ (as specified in `pyproject.toml`)
 - **Package Manager**: [uv](https://github.com/astral-sh/uv)
 - **API Key**: A valid `GEMINI_API_KEY` with access to Google's Generative AI models.
 - **Local Dependency**: The [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp) repository should be cloned in the parent directory (relative path: `../shield-agent-mcp`).
