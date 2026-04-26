@@ -9,7 +9,7 @@ By leveraging the **Model Context Protocol (MCP)**, ShieldOrchestrator integrate
 ## 🚀 Key Features
 
 ### 🔄 Intelligent Model Failover (Rotating Model)
-ShieldOrchestrator features a custom `RotatingModel` implementation that ensures high availability. It maintains a pool of models (Gemma, Gemini Flash, Gemini Pro) and automatically fails over to the next available model if it encounters rate limits (HTTP 429) or resource exhaustion.
+ShieldOrchestrator features a custom `RotatingModel` implementation that ensures high availability. It maintains a pool of high-end models (Gemma 4 series, Gemini 2.0 Flash, Gemini Pro) and automatically fails over to the next available model if it encounters rate limits (HTTP 429) or resource exhaustion.
 
 ### 🤖 Multi-Agent Specialized Workflows
 The framework utilizes three specialized agents working in concert:
@@ -18,7 +18,7 @@ The framework utilizes three specialized agents working in concert:
 - **Security Remediator**: Responsible for fixing identified issues. Generates and applies safe patches to the codebase with clear justifications.
 
 ### 🔌 MCP-Native Integration
-ShieldOrchestrator is designed to work seamlessly with [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp), providing agents with direct access to security tools like `trivy`, `semgrep`, and local filesystem operations.
+ShieldOrchestrator is designed to work seamlessly with [ShieldAgent-MCP](https://github.com/gbvk312/shield-agent-mcp), providing agents with direct access to security tools like the `LocalScanner`, `CloudAuditor`, and local filesystem operations via standardized MCP tools.
 
 ---
 
@@ -65,6 +65,7 @@ Once the REPL starts, you can issue high-level security commands like:
 - *"Perform a full security audit of the current directory."*
 - *"Scan for hardcoded secrets and fix any you find."*
 - *"Check if our network configuration is exposed."*
+- *"Audit the file `main.py` for logic flaws."*
 
 ---
 
