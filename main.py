@@ -55,7 +55,7 @@ class RotatingModel(Model):
         
         raise Exception("❌ All models in the pool have reached their rate limits. Please wait a minute.")
 
-    async def stream_response(self, *args, **kwargs) -> AsyncIterator:
+    async def stream_response(self, *args, **kwargs) -> AsyncIterator:  # type: ignore[override]
         """Stream with failover: retries on 429 at connection start."""
         attempts = 0
         while attempts < len(self._models):
@@ -100,9 +100,10 @@ async def main():
     rotating_model = RotatingModel(model_pool, gemini_client)
 
     # 4. Define MCP Server Connection
+    agent_path = os.getenv("SHIELD_AGENT_PATH", "../shield-agent-mcp")
     server_params = {
         "command": "bash",
-        "args": ["-c", "cd ../shield-agent-mcp && uv run shield-agent run-mcp"],
+        "args": ["-c", f"cd {agent_path} && uv run shield-agent run-mcp"],
         "env": {**os.environ, "GEMINI_API_KEY": gemini_key}
     }
 
