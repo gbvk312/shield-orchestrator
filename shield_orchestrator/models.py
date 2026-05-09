@@ -22,10 +22,7 @@ class RotatingModel(Model):
         self.model_ids = model_ids
         self.client = client
         self.index = 0
-        self._models = [
-            OpenAIChatCompletionsModel(model=mid, openai_client=client)
-            for mid in model_ids
-        ]
+        self._models = [OpenAIChatCompletionsModel(model=mid, openai_client=client) for mid in model_ids]
 
     @property
     def model_id(self) -> str:

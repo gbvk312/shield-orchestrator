@@ -42,17 +42,21 @@ async def main():
 
     # 4. Define MCP Server Connection
     agent_path = get_agent_path()
+
+    if not os.path.exists(agent_path):
+        print(f"Error: The configured agent path '{agent_path}' does not exist.")
+        print("Please check your SHIELD_AGENT_PATH environment variable or confirm the directory exists.")
+        return
+
     server_params = {
         "command": "bash",
         "args": ["-c", f"cd {shlex.quote(agent_path)} && uv run shield-agent run-mcp"],
-        "env": {**os.environ, "GEMINI_API_KEY": gemini_key}
+        "env": {**os.environ, "GEMINI_API_KEY": gemini_key},
     }
 
     try:
         async with MCPServerStdio(
-            params=server_params, 
-            name="ShieldAgent-MCP",
-            client_session_timeout_seconds=30
+            params=server_params, name="ShieldAgent-MCP", client_session_timeout_seconds=30
         ) as mcp_server:
             print("[+] Successfully connected to ShieldAgent-MCP!")
 
@@ -65,6 +69,7 @@ async def main():
 
     except Exception as e:
         print(f"Failed to connect or run the orchestrator: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
