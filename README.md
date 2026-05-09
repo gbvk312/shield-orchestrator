@@ -1,5 +1,7 @@
 # 🛡️ ShieldOrchestrator
 
+[![CI](https://github.com/gbvk312/shield-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/gbvk312/shield-orchestrator/actions/workflows/ci.yml)
+
 **ShieldOrchestrator** is a multi-agent DevSecOps orchestration framework built on the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python). It serves as the autonomous "brain" that manages specialized sub-agents to deliver robust, automated, and local-first security scanning and remediation.
 
 By leveraging the **Model Context Protocol (MCP)**, ShieldOrchestrator integrates deeply with local development environments, allowing AI agents to inspect codebases, identify vulnerabilities, and apply fixes without exposing sensitive data to external services.

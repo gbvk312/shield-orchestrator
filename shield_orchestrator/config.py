@@ -1,6 +1,7 @@
 """Configuration and settings for the Shield Orchestrator."""
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()

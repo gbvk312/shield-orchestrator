@@ -1,9 +1,10 @@
 """RotatingModel: Failover-aware model wrapper for rate-limit resilience."""
 
 from collections.abc import AsyncIterator
-from openai import AsyncOpenAI
+
 from agents import OpenAIChatCompletionsModel
 from agents.models.interface import Model
+from openai import AsyncOpenAI
 
 
 class RotatingModel(Model):

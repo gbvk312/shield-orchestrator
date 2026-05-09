@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from shield_orchestrator.models import RotatingModel
+
 
 @pytest.mark.asyncio
 async def test_rotating_model_success():

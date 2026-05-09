@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from main import main
+
 
 @pytest.mark.asyncio
 async def test_main_initialization_and_exit():

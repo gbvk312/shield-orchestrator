@@ -5,19 +5,20 @@ import os
 
 # 1. Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
 from agents import set_tracing_disabled  # noqa: E402
+
 set_tracing_disabled(True)
 
-from openai import AsyncOpenAI  # noqa: E402
 from agents import Agent, Runner  # noqa: E402
 from agents.mcp import MCPServerStdio  # noqa: E402
+from openai import AsyncOpenAI  # noqa: E402
 
-from shield_orchestrator.models import RotatingModel  # noqa: E402
 from shield_orchestrator.config import (  # noqa: E402
-    get_gemini_api_key,
-    get_agent_path,
     DEFAULT_MODEL_POOL,
     GEMINI_BASE_URL,
+    get_agent_path,
+    get_gemini_api_key,
 )
+from shield_orchestrator.models import RotatingModel  # noqa: E402
 
 
 async def main():
@@ -80,7 +81,8 @@ async def main():
                     "Workflow: "
                     "1. Use 'scan_for_secrets' on the target directory to detect PII, API keys, and secrets. "
                     "2. Use 'read_file' to inspect suspicious files identified by the scan. "
-                    "3. Use 'audit_file' on critical source files (e.g., config, auth, API handlers) for deep analysis. "
+                    "3. Use 'audit_file' on critical source files (e.g., config, auth, API "
+                    "handlers) for deep analysis. "
                     "4. Compile a structured report with severity levels (CRITICAL/HIGH/MEDIUM/LOW). "
                     "5. Hand off to the Manager with your findings. Do NOT attempt to fix issues yourself."
                 ),
@@ -96,7 +98,8 @@ async def main():
                     "Workflow: "
                     "1. Review the audit findings provided by the Manager or Auditor. "
                     "2. Use 'read_file' to inspect the current content of affected files. "
-                    "3. Use 'safe_write_file' to apply patches. ALWAYS provide a clear 'reason' explaining the security fix. "
+                    "3. Use 'safe_write_file' to apply patches. ALWAYS provide a clear "
+                    "'reason' explaining the security fix. "
                     "4. Verify your fix by reading the file again after writing. "
                     "5. Report all changes made and hand off to the Manager. Do NOT scan for new issues."
                 ),
