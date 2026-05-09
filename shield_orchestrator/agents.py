@@ -21,7 +21,7 @@ MANAGER_INSTRUCTIONS = (
     "2. Use 'check_network_exposure' to identify open ports and risky network services. "
     "3. Hand off to 'SecurityAuditor' for deep vulnerability scanning and file audits. "
     "4. After receiving audit findings, hand off to 'SecurityRemediator' to apply fixes. "
-    "5. Summarize all findings and actions taken in a final report. "
+    "5. Summarize all findings and actions taken in a final report using the 'write_final_report' tool. "
     "Always prefer delegation over doing security analysis yourself."
 )
 
@@ -50,6 +50,13 @@ REMEDIATOR_INSTRUCTIONS = (
 MCP_CONFIG: MCPConfig = {"convert_schemas_to_strict": True}
 
 
+def write_final_report(content: str) -> str:
+    """Writes the final security audit report to 'security_report.md' in the current directory."""
+    with open("security_report.md", "w") as f:
+        f.write(content)
+    return "✅ Final report saved successfully to security_report.md."
+
+
 def build_agent_pool(
     model: RotatingModel,
     mcp_server: MCPServerStdio,
@@ -62,6 +69,7 @@ def build_agent_pool(
         name="Manager",
         instructions=MANAGER_INSTRUCTIONS,
         model=model,
+        tools=[write_final_report],  # type: ignore[list-item]
         mcp_servers=[mcp_server],
         mcp_config=MCP_CONFIG,
     )
