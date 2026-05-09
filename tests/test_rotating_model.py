@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from main import RotatingModel
+from shield_orchestrator.models import RotatingModel
 
 @pytest.mark.asyncio
 async def test_rotating_model_success():
@@ -122,3 +122,24 @@ async def test_rotating_model_stream_success():
     # Assertion
     assert response_stream == mock_iterator
     mock_model_1.stream_response.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_rotating_model_model_id_property():
+    """model_id should return the currently active model identifier."""
+    mock_client = MagicMock()
+    model_ids = ["model-alpha", "model-beta"]
+    
+    rotating_model = RotatingModel(model_ids, mock_client)
+    assert rotating_model.model_id == "model-alpha"
+    
+    rotating_model.index = 1
+    assert rotating_model.model_id == "model-beta"
+
+@pytest.mark.asyncio
+async def test_rotating_model_is_rate_limit_error():
+    """Helper should detect various rate limit error patterns."""
+    assert RotatingModel._is_rate_limit_error(Exception("429 Too Many Requests"))
+    assert RotatingModel._is_rate_limit_error(Exception("RESOURCE_EXHAUSTED"))
+    assert RotatingModel._is_rate_limit_error(Exception("rate limit exceeded"))
+    assert not RotatingModel._is_rate_limit_error(Exception("Bad Request 400"))
+    assert not RotatingModel._is_rate_limit_error(Exception("Internal Server Error"))

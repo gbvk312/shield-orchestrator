@@ -1,80 +1,27 @@
+"""Shield Orchestrator — Multi-Agent Security REPL entry point."""
+
 import asyncio
 import os
-from collections.abc import AsyncIterator
-from dotenv import load_dotenv
-
-# Load .env file
-load_dotenv()
 
 # 1. Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
 from agents import set_tracing_disabled  # noqa: E402
 set_tracing_disabled(True)
 
 from openai import AsyncOpenAI  # noqa: E402
-from agents import Agent, Runner, OpenAIChatCompletionsModel  # noqa: E402
-from agents.models.interface import Model  # noqa: E402
+from agents import Agent, Runner  # noqa: E402
 from agents.mcp import MCPServerStdio  # noqa: E402
 
-# --- CUSTOM ROTATING MODEL (FAILOVER MODE) ---
+from shield_orchestrator.models import RotatingModel  # noqa: E402
+from shield_orchestrator.config import (  # noqa: E402
+    get_gemini_api_key,
+    get_agent_path,
+    DEFAULT_MODEL_POOL,
+    GEMINI_BASE_URL,
+)
 
-class RotatingModel(Model):
-    """
-    Stays with the same model until a Rate Limit (429) is encountered,
-    then fails over to the next model in the pool.
-    """
-    def __init__(self, model_ids: list[str], client: AsyncOpenAI):
-        self.model_ids = model_ids
-        self.client = client
-        self.index = 0
-        self._models = [
-            OpenAIChatCompletionsModel(model=mid, openai_client=client)
-            for mid in model_ids
-        ]
-
-    def _get_current_model(self):
-        return self._models[self.index]
-
-    async def get_response(self, *args, **kwargs):
-        attempts = 0
-        while attempts < len(self._models):
-            model = self._get_current_model()
-            try:
-                # Attempt to get a response with the current model
-                return await model.get_response(*args, **kwargs)
-            except Exception as e:
-                err_str = str(e).lower()
-                # Detect rate limits (429) or Google's RESOURCE_EXHAUSTED status
-                if any(key in err_str for key in ["429", "resource_exhausted", "rate limit"]):
-                    print(f"[RotatingModel] ⚠️ Rate Limit hit for {self.model_ids[self.index]}.")
-                    self.index = (self.index + 1) % len(self._models)
-                    print(f"[RotatingModel] 🔄 Failing over to: {self.model_ids[self.index]}")
-                    attempts += 1
-                    continue
-                # For any other fatal errors (400, etc.), raise immediately
-                raise e
-        
-        raise Exception("❌ All models in the pool have reached their rate limits. Please wait a minute.")
-
-    async def stream_response(self, *args, **kwargs) -> AsyncIterator:  # type: ignore[override]
-        """Stream with failover: retries on 429 at connection start."""
-        attempts = 0
-        while attempts < len(self._models):
-            model = self._get_current_model()
-            try:
-                return await model.stream_response(*args, **kwargs)
-            except Exception as e:
-                err_str = str(e).lower()
-                if any(key in err_str for key in ["429", "resource_exhausted", "rate limit"]):
-                    print(f"[RotatingModel] ⚠️ Stream Rate Limit hit for {self.model_ids[self.index]}.")
-                    self.index = (self.index + 1) % len(self._models)
-                    print(f"[RotatingModel] 🔄 Stream failing over to: {self.model_ids[self.index]}")
-                    attempts += 1
-                    continue
-                raise e
-        raise Exception("❌ All models in the pool have reached their rate limits during streaming.")
 
 async def main():
-    gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_key = get_gemini_api_key()
     if not gemini_key:
         print("Please configure GEMINI_API_KEY in your .env file.")
         return
@@ -84,23 +31,14 @@ async def main():
     # 2. Configure Gemini Client
     gemini_client = AsyncOpenAI(
         api_key=gemini_key,
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        base_url=GEMINI_BASE_URL,
     )
 
-    # 3. Define the Model Pool (Gemma 4+ and Gemini)
-    # Sticking to models confirmed to support Tool Calling.
-    model_pool = [
-        "gemma-4-31b-it",
-        "gemma-4-26b-a4b-it",
-        "gemini-2.0-flash",
-        "gemini-flash-latest",
-        "gemini-pro-latest"
-    ]
-    
-    rotating_model = RotatingModel(model_pool, gemini_client)
+    # 3. Create the rotating model with the configured pool
+    rotating_model = RotatingModel(DEFAULT_MODEL_POOL, gemini_client)
 
     # 4. Define MCP Server Connection
-    agent_path = os.getenv("SHIELD_AGENT_PATH", "../shield-agent-mcp")
+    agent_path = get_agent_path()
     server_params = {
         "command": "bash",
         "args": ["-c", f"cd {agent_path} && uv run shield-agent run-mcp"],
@@ -174,8 +112,8 @@ async def main():
 
             # --- START REPL ---
             print("---")
-            print(f"Primary Model: {model_pool[0]}")
-            print(f"Failover Pool: {', '.join(model_pool[1:])}")
+            print(f"Primary Model: {DEFAULT_MODEL_POOL[0]}")
+            print(f"Failover Pool: {', '.join(DEFAULT_MODEL_POOL[1:])}")
             print("---")
             
             while True:
