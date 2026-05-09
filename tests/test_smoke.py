@@ -54,3 +54,22 @@ async def test_main_single_command_and_exit():
                     # Verify Runner.run was called with the manager and prompt
                     mock_runner.assert_called_once()
                     assert "test audit" in mock_runner.call_args[0]
+
+
+@pytest.mark.asyncio
+async def test_main_eof_handling():
+    """
+    Verifies that the orchestrator handles EOF (piped stdin) gracefully.
+    """
+    with patch("shield_orchestrator.config.get_gemini_api_key", return_value="fake-key"):
+        mock_mcp_server = MagicMock()
+        mock_mcp_server.__aenter__ = AsyncMock(return_value=MagicMock())
+        mock_mcp_server.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("main.MCPServerStdio", return_value=mock_mcp_server):
+            with patch("builtins.input", side_effect=EOFError):
+                with patch("agents.Runner.run", new_callable=AsyncMock) as mock_runner:
+                    await main()
+
+                    # Should exit cleanly without calling Runner
+                    mock_runner.assert_not_called()

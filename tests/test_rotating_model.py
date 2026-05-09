@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from shield_orchestrator.models import RotatingModel
+from shield_orchestrator.models import ModelPoolExhaustedError, RotatingModel
 
 
 @pytest.mark.asyncio
@@ -99,7 +99,7 @@ async def test_rotating_model_all_exhausted():
     rotating_model._models = [mock_model_1, mock_model_2]
     
     # Execution & Assertion
-    with pytest.raises(Exception, match="All models in the pool have reached their rate limits"):
+    with pytest.raises(ModelPoolExhaustedError, match="All models in the pool have reached their rate limits"):
         await rotating_model.get_response("test prompt")
     
     assert mock_model_1.get_response.call_count == 1
@@ -110,21 +110,24 @@ async def test_rotating_model_stream_success():
     # Setup
     mock_client = MagicMock()
     model_ids = ["model-1"]
-    
+
     rotating_model = RotatingModel(model_ids, mock_client)
-    
-    mock_model_1 = AsyncMock()
-    mock_iterator = AsyncMock()
-    mock_model_1.stream_response.return_value = mock_iterator
-    
+
+    # stream_response is now an async generator, so the delegate must also yield
+    async def mock_stream(*args, **kwargs):
+        yield "chunk-1"
+        yield "chunk-2"
+
+    mock_model_1 = MagicMock()
+    mock_model_1.stream_response = mock_stream
+
     rotating_model._models = [mock_model_1]
-    
-    # Execution
-    response_stream = await rotating_model.stream_response("test prompt")
-    
+
+    # Execution — collect chunks from the async generator
+    chunks = [chunk async for chunk in rotating_model.stream_response("test prompt")]
+
     # Assertion
-    assert response_stream == mock_iterator
-    mock_model_1.stream_response.assert_called_once()
+    assert chunks == ["chunk-1", "chunk-2"]
 
 @pytest.mark.asyncio
 async def test_rotating_model_model_id_property():

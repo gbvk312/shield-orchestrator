@@ -27,7 +27,7 @@ jobs:
         run: uv run ruff check .
         
       - name: Type check with mypy
-        run: uv run mypy shield_orchestrator
+        run: uv run mypy shield_orchestrator main.py
         
       - name: Run tests
         run: uv run pytest

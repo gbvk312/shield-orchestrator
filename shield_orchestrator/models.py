@@ -1,10 +1,15 @@
 """RotatingModel: Failover-aware model wrapper for rate-limit resilience."""
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 from agents import OpenAIChatCompletionsModel
 from agents.models.interface import Model
 from openai import AsyncOpenAI
+
+
+class ModelPoolExhaustedError(RuntimeError):
+    """Raised when every model in the pool has been rate-limited."""
 
 
 class RotatingModel(Model):
@@ -50,17 +55,19 @@ class RotatingModel(Model):
                     attempts += 1
                     continue
                 # For any other fatal errors (400, etc.), raise immediately
-                raise e
+                raise
 
-        raise Exception("❌ All models in the pool have reached their rate limits. Please wait a minute.")
+        raise ModelPoolExhaustedError("❌ All models in the pool have reached their rate limits. Please wait a minute.")
 
-    async def stream_response(self, *args, **kwargs) -> AsyncIterator:  # type: ignore[override]
+    async def stream_response(self, *args: Any, **kwargs: Any) -> AsyncIterator:  # type: ignore[override]
         """Stream with failover: retries on 429 at connection start."""
         attempts = 0
         while attempts < len(self._models):
             model = self._get_current_model()
             try:
-                return await model.stream_response(*args, **kwargs)
+                async for chunk in model.stream_response(*args, **kwargs):
+                    yield chunk
+                return
             except Exception as e:
                 if self._is_rate_limit_error(e):
                     print(f"[RotatingModel] ⚠️ Stream Rate Limit hit for {self.model_ids[self.index]}.")
@@ -68,5 +75,5 @@ class RotatingModel(Model):
                     print(f"[RotatingModel] 🔄 Stream failing over to: {self.model_ids[self.index]}")
                     attempts += 1
                     continue
-                raise e
-        raise Exception("❌ All models in the pool have reached their rate limits during streaming.")
+                raise
+        raise ModelPoolExhaustedError("❌ All models in the pool have reached their rate limits during streaming.")
