@@ -57,16 +57,24 @@ class RotatingModel(Model):
         raise ModelPoolExhaustedError("❌ All models in the pool have reached their rate limits. Please wait a minute.")
 
     async def stream_response(self, *args: Any, **kwargs: Any) -> AsyncIterator:  # type: ignore[override]
-        """Stream with failover: retries on 429 at connection start."""
+        """Stream with failover: retries on 429 only if no chunks have been yielded yet."""
         attempts = 0
         while attempts < len(self._models):
             model = self._get_current_model()
+            yielded_any = False
             try:
                 async for chunk in model.stream_response(*args, **kwargs):
                     yield chunk
+                    yielded_any = True
                 return
             except Exception as e:
                 if self._is_rate_limit_error(e):
+                    if yielded_any:
+                        print(
+                            f"[RotatingModel] ⚠️ Rate Limit hit mid-stream for "
+                            f"{self.model_ids[self.index]}. Cannot cleanly failover."
+                        )
+                        raise
                     print(f"[RotatingModel] ⚠️ Stream Rate Limit hit for {self.model_ids[self.index]}.")
                     self.index = (self.index + 1) % len(self._models)
                     print(f"[RotatingModel] 🔄 Stream failing over to: {self.model_ids[self.index]}")

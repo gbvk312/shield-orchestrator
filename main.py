@@ -24,11 +24,18 @@ from shield_orchestrator.models import RotatingModel  # noqa: E402
 from shield_orchestrator.repl import run_repl  # noqa: E402
 
 
+class ConfigurationError(RuntimeError):
+    """Raised when environment variables or paths are incorrectly configured."""
+
+
+class AgentConnectionError(RuntimeError):
+    """Raised when the MCP server fails to connect or start."""
+
+
 async def main() -> None:
     gemini_key = get_gemini_api_key()
     if not gemini_key:
-        print("Error: Please configure GEMINI_API_KEY in your .env file.", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigurationError("Please configure GEMINI_API_KEY in your .env file.")
 
     print("Initializing Multi-Agent Security Framework (Failover Mode)...")
 
@@ -45,12 +52,10 @@ async def main() -> None:
     agent_path = os.path.abspath(get_agent_path())
 
     if not os.path.exists(agent_path):
-        print(f"Error: The configured agent path '{agent_path}' does not exist.", file=sys.stderr)
-        print(
-            "Please check your SHIELD_AGENT_PATH environment variable or confirm the directory exists.",
-            file=sys.stderr,
+        raise ConfigurationError(
+            f"The configured agent path '{agent_path}' does not exist.\n"
+            "Please check your SHIELD_AGENT_PATH environment variable or confirm the directory exists."
         )
-        sys.exit(1)
 
     server_params = MCPServerStdioParams(
         command="bash",
@@ -72,13 +77,18 @@ async def main() -> None:
             await run_repl(manager, DEFAULT_MODEL_POOL)
 
     except Exception as e:
-        print(f"Failed to connect or run the orchestrator: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise AgentConnectionError(f"Failed to connect or run the orchestrator: {e}") from e
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
+    except ConfigurationError as e:
+        print(f"Configuration Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except AgentConnectionError as e:
+        print(f"Connection Error: {e}", file=sys.stderr)
+        sys.exit(1)
     except KeyboardInterrupt:
         print("\n[Orchestrator Shutdown] Goodbye!")
         sys.exit(0)
