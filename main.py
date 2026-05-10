@@ -3,13 +3,14 @@
 import asyncio
 import os
 import shlex
+import sys
 
 # 1. Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
 from agents import set_tracing_disabled  # noqa: E402
 
 set_tracing_disabled(True)
 
-from agents.mcp import MCPServerStdio  # noqa: E402
+from agents.mcp import MCPServerStdio, MCPServerStdioParams  # noqa: E402
 from openai import AsyncOpenAI  # noqa: E402
 
 from shield_orchestrator.agents import build_agent_pool  # noqa: E402
@@ -23,11 +24,11 @@ from shield_orchestrator.models import RotatingModel  # noqa: E402
 from shield_orchestrator.repl import run_repl  # noqa: E402
 
 
-async def main():
+async def main() -> None:
     gemini_key = get_gemini_api_key()
     if not gemini_key:
-        print("Please configure GEMINI_API_KEY in your .env file.")
-        return
+        print("Error: Please configure GEMINI_API_KEY in your .env file.", file=sys.stderr)
+        sys.exit(1)
 
     print("Initializing Multi-Agent Security Framework (Failover Mode)...")
 
@@ -41,18 +42,21 @@ async def main():
     rotating_model = RotatingModel(DEFAULT_MODEL_POOL, gemini_client)
 
     # 4. Define MCP Server Connection
-    agent_path = get_agent_path()
+    agent_path = os.path.abspath(get_agent_path())
 
     if not os.path.exists(agent_path):
-        print(f"Error: The configured agent path '{agent_path}' does not exist.")
-        print("Please check your SHIELD_AGENT_PATH environment variable or confirm the directory exists.")
-        return
+        print(f"Error: The configured agent path '{agent_path}' does not exist.", file=sys.stderr)
+        print(
+            "Please check your SHIELD_AGENT_PATH environment variable or confirm the directory exists.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    server_params = {
-        "command": "bash",
-        "args": ["-c", f"cd {shlex.quote(agent_path)} && uv run shield-agent run-mcp"],
-        "env": {**os.environ, "GEMINI_API_KEY": gemini_key},
-    }
+    server_params = MCPServerStdioParams(
+        command="bash",
+        args=["-c", f"cd {shlex.quote(agent_path)} && uv run shield-agent run-mcp"],
+        env={**os.environ, "GEMINI_API_KEY": gemini_key},
+    )
 
     try:
         async with MCPServerStdio(
@@ -68,8 +72,13 @@ async def main():
             await run_repl(manager, DEFAULT_MODEL_POOL)
 
     except Exception as e:
-        print(f"Failed to connect or run the orchestrator: {e}")
+        print(f"Failed to connect or run the orchestrator: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[Orchestrator Shutdown] Goodbye!")
+        sys.exit(0)
