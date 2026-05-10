@@ -21,7 +21,7 @@ MANAGER_INSTRUCTIONS = (
     "2. Use 'check_network_exposure' to identify open ports and risky network services. "
     "3. Hand off to 'SecurityAuditor' for deep vulnerability scanning and file audits. "
     "4. After receiving audit findings, hand off to 'SecurityRemediator' to apply fixes. "
-    "5. Summarize all findings and actions taken in a final report using the 'write_final_report' tool. "
+    "5. Once RedTeamAgent validates the fixes, summarize all findings and actions taken in a final report using the 'write_final_report' tool. "
     "Always prefer delegation over doing security analysis yourself."
 )
 
@@ -41,10 +41,20 @@ REMEDIATOR_INSTRUCTIONS = (
     "Workflow: "
     "1. Review the audit findings provided by the Manager or Auditor. "
     "2. Use 'read_file' to inspect the current content of affected files. "
-    "3. Use 'safe_write_file' to apply patches. ALWAYS provide a clear "
-    "'reason' explaining the security fix. "
-    "4. Verify your fix by reading the file again after writing. "
-    "5. Report all changes made and hand off to the Manager. Do NOT scan for new issues."
+    "3. BEFORE writing, use 'validate_policy' on your proposed patch content to ensure it complies with security policies. "
+    "4. If validation fails, revise your patch and test again. "
+    "5. Use 'safe_write_file' to apply patches. ALWAYS provide a clear 'reason' explaining the security fix. "
+    "6. Report all changes made and hand off to the RedTeamAgent for verification. Do NOT scan for new issues."
+)
+
+RED_TEAM_INSTRUCTIONS = (
+    "You are the Red Team Agent. Your ONLY goal is to attempt to bypass or break the patches proposed by the SecurityRemediator. "
+    "Workflow: "
+    "1. Review the patch applied by the SecurityRemediator. "
+    "2. Think like an attacker: Can this fix be bypassed? Are permissions still too broad? "
+    "3. Use 'read_file' to inspect the updated file context. "
+    "4. If you find a flaw or bypass, document it clearly and hand off back to the SecurityRemediator to try again. "
+    "5. If the patch seems solid and cannot be easily bypassed, hand off back to the Manager."
 )
 
 MCP_CONFIG: MCPConfig = {"convert_schemas_to_strict": True}
@@ -55,6 +65,21 @@ def write_final_report(content: str) -> str:
     with open("security_report.md", "w") as f:
         f.write(content)
     return "✅ Final report saved successfully to security_report.md."
+
+def validate_policy(patch_content: str) -> str:
+    """Evaluates proposed patch content against Policy-as-Code rules."""
+    violations = []
+    content_lower = patch_content.lower()
+    if "eval(" in content_lower:
+        violations.append("Violation: 'eval()' is strictly prohibited.")
+    if "0.0.0.0" in patch_content:
+        violations.append("Violation: Binding to '0.0.0.0' is prohibited unless explicitly justified.")
+    if "chmod 777" in content_lower:
+        violations.append("Violation: 'chmod 777' is strictly prohibited.")
+    
+    if violations:
+        return "❌ Policy Validation Failed:\n" + "\n".join(violations)
+    return "✅ Policy Validation Passed."
 
 
 def build_agent_pool(
@@ -86,12 +111,21 @@ def build_agent_pool(
         name="SecurityRemediator",
         instructions=REMEDIATOR_INSTRUCTIONS,
         model=model,
+        tools=[validate_policy],  # type: ignore[list-item]
+        mcp_servers=[mcp_server],
+        mcp_config=MCP_CONFIG,
+    )
+
+    red_team = Agent(
+        name="RedTeamAgent",
+        instructions=RED_TEAM_INSTRUCTIONS,
+        model=model,
         mcp_servers=[mcp_server],
         mcp_config=MCP_CONFIG,
     )
 
     # Cross-link all agents for handoff support
-    agent_pool = [manager, auditor, remediator]
+    agent_pool = [manager, auditor, remediator, red_team]
     for agent in agent_pool:
         agent.handoffs = [a for a in agent_pool if a != agent]
 
