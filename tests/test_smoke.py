@@ -11,7 +11,8 @@ async def test_main_initialization_and_exit():
     Verifies that the orchestrator starts, connects to MCP (mocked),
     processes an exit command, and shuts down gracefully.
     """
-    with patch("shield_orchestrator.config.get_gemini_api_key", return_value="fake-key"):
+    with patch("main.get_gemini_api_key", return_value="fake-key"), \
+         patch("main.os.path.exists", return_value=True):
         # Mock MCPServerStdio context manager
         mock_mcp_server = MagicMock()
         mock_mcp_server.__aenter__ = AsyncMock(return_value=MagicMock())
@@ -36,7 +37,8 @@ async def test_main_single_command_and_exit():
     """
     Verifies that the orchestrator can process a single command and then exit.
     """
-    with patch("shield_orchestrator.config.get_gemini_api_key", return_value="fake-key"):
+    with patch("main.get_gemini_api_key", return_value="fake-key"), \
+         patch("main.os.path.exists", return_value=True):
         # Mock MCPServerStdio
         mock_mcp_server = MagicMock()
         mock_mcp_server.__aenter__ = AsyncMock(return_value=MagicMock())
@@ -62,7 +64,8 @@ async def test_main_eof_handling():
     """
     Verifies that the orchestrator handles EOF (piped stdin) gracefully.
     """
-    with patch("shield_orchestrator.config.get_gemini_api_key", return_value="fake-key"):
+    with patch("main.get_gemini_api_key", return_value="fake-key"), \
+         patch("main.os.path.exists", return_value=True):
         mock_mcp_server = MagicMock()
         mock_mcp_server.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_mcp_server.__aexit__ = AsyncMock(return_value=None)
