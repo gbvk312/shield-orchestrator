@@ -21,7 +21,8 @@ MANAGER_INSTRUCTIONS = (
     "2. Use 'check_network_exposure' to identify open ports and risky network services. "
     "3. Hand off to 'SecurityAuditor' for deep vulnerability scanning and file audits. "
     "4. After receiving audit findings, hand off to 'SecurityRemediator' to apply fixes. "
-    "5. Once RedTeamAgent validates the fixes, summarize all findings and actions taken in a final report using the 'write_final_report' tool. "
+    "5. Once RedTeamAgent validates the fixes, summarize all findings and actions taken "
+    "in a final report using the 'write_final_report' tool. "
     "Always prefer delegation over doing security analysis yourself."
 )
 
@@ -41,14 +42,16 @@ REMEDIATOR_INSTRUCTIONS = (
     "Workflow: "
     "1. Review the audit findings provided by the Manager or Auditor. "
     "2. Use 'read_file' to inspect the current content of affected files. "
-    "3. BEFORE writing, use 'validate_policy' on your proposed patch content to ensure it complies with security policies. "
+    "3. BEFORE writing, use 'validate_policy' on your proposed patch content to ensure "
+    "it complies with security policies. "
     "4. If validation fails, revise your patch and test again. "
     "5. Use 'safe_write_file' to apply patches. ALWAYS provide a clear 'reason' explaining the security fix. "
     "6. Report all changes made and hand off to the RedTeamAgent for verification. Do NOT scan for new issues."
 )
 
 RED_TEAM_INSTRUCTIONS = (
-    "You are the Red Team Agent. Your ONLY goal is to attempt to bypass or break the patches proposed by the SecurityRemediator. "
+    "You are the Red Team Agent. Your ONLY goal is to attempt to bypass or break the patches "
+    "proposed by the SecurityRemediator. "
     "Workflow: "
     "1. Review the patch applied by the SecurityRemediator. "
     "2. Think like an attacker: Can this fix be bypassed? Are permissions still too broad? "
