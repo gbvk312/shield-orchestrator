@@ -5,23 +5,19 @@ import os
 import shlex
 import sys
 
-# 1. Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
-from agents import set_tracing_disabled  # noqa: E402
+from agents import set_tracing_disabled
+from agents.mcp import MCPServerStdio, MCPServerStdioParams
+from openai import AsyncOpenAI
 
-set_tracing_disabled(True)
-
-from agents.mcp import MCPServerStdio, MCPServerStdioParams  # noqa: E402
-from openai import AsyncOpenAI  # noqa: E402
-
-from shield_orchestrator.agents import build_agent_pool  # noqa: E402
-from shield_orchestrator.config import (  # noqa: E402
+from shield_orchestrator.agents import build_agent_pool
+from shield_orchestrator.config import (
     DEFAULT_MODEL_POOL,
     GEMINI_BASE_URL,
     get_agent_path,
     get_gemini_api_key,
 )
-from shield_orchestrator.models import RotatingModel  # noqa: E402
-from shield_orchestrator.repl import run_repl  # noqa: E402
+from shield_orchestrator.models import RotatingModel
+from shield_orchestrator.repl import run_repl
 
 
 class ConfigurationError(RuntimeError):
@@ -33,6 +29,9 @@ class AgentConnectionError(RuntimeError):
 
 
 async def main() -> None:
+    # Disable tracing to avoid OpenAI-specific telemetry calls failing with a 401
+    set_tracing_disabled(True)
+
     gemini_key = get_gemini_api_key()
     if not gemini_key:
         raise ConfigurationError("Please configure GEMINI_API_KEY in your .env file.")
@@ -76,8 +75,10 @@ async def main() -> None:
             # Start interactive REPL
             await run_repl(manager, DEFAULT_MODEL_POOL)
 
+    except (ConnectionRefusedError, TimeoutError, FileNotFoundError) as e:
+        raise AgentConnectionError(f"Failed to connect to MCP server: {e}") from e
     except Exception as e:
-        raise AgentConnectionError(f"Failed to connect or run the orchestrator: {e}") from e
+        raise AgentConnectionError(f"Unexpected error running orchestrator: {e}") from e
 
 
 if __name__ == "__main__":
@@ -92,3 +93,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n[Orchestrator Shutdown] Goodbye!")
         sys.exit(0)
+

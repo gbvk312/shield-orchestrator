@@ -58,3 +58,4 @@ Thumbs.db
 scratch/
 *.bak
 .python-version
+uv.lock

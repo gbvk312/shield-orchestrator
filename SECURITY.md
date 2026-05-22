@@ -8,23 +8,16 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within ShieldOrchestrator, please report it responsibly.
+Please report security vulnerabilities by emailing **gbvk.312@gmail.com**.
 
-**Do NOT open a public GitHub issue.**
+- You will receive an acknowledgment within **48 hours**.
+- A detailed response will follow within **1 week**.
+- We will work with you to understand and address the issue.
 
-Instead, please send an email to the maintainer with:
+## Scope
 
-1. A description of the vulnerability.
-2. Steps to reproduce the issue.
-3. Any potential impact assessment.
+This policy applies to the `shield-orchestrator` repository and its direct dependencies.
 
-You should receive a response within 48 hours acknowledging your report. We will work with you to understand and address the issue before any public disclosure.
+## Preferred Languages
 
-## Security Best Practices
-
-When using ShieldOrchestrator:
-
-- **Never commit API keys** — always use `.env` files (excluded via `.gitignore`).
-- **Keep dependencies updated** — run `uv sync` regularly.
-- **Review agent outputs** — AI-generated fixes should always be reviewed by a human before merging.
-- **Use the principle of least privilege** — grant agents only the permissions they need.
+We prefer all communications to be in **English**.
