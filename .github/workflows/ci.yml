@@ -12,6 +12,8 @@ permissions:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
       matrix:
         python-version: ['3.11', '3.12', '3.13']
@@ -37,4 +39,3 @@ jobs:
         
       - name: Run tests
         run: uv run pytest
-
